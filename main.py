@@ -2,18 +2,41 @@
 DB_HOST = 'localhost'
 DB_NAME = 'proyecto_db'
 DB_USER = 'postgres'
-DB_PASS = '123456'
+DB_PASS = 'niarfe+456'
 
 import psycopg2
 import psycopg2.extras
 import random
 import string
 
-conn = psycopg2.connect(dbname=DB_NAME, user=DB_USER, password=DB_PASS, host=DB_HOST , port=5432)
+conn = psycopg2.connect(dbname=DB_NAME, user=DB_USER, password=DB_PASS, host=DB_HOST , port=5433)
 
 
 def genText():
     return ''.join(random.choices(string.ascii_letters + string.digits, k=16))
+
+def generate_comprobante(size):
+    comprobante_cache = []
+    for i in range(size):
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curr:
+                numero = random.randint(1000, 9999)
+                while numero in comprobante_cache:
+                    numero = random.randint(1000, 9999)
+                comprobante_cache.append(numero)
+                start_date = datetime.date(2020, 1, 1)
+                end_date = datetime.date(2020, 2, 1)
+                time_between_dates = end_date - start_date
+                days_between_dates = time_between_dates.days
+                random_number_of_days = random.randrange(days_between_dates)
+                random_date = start_date + datetime.timedelta(days=random_number_of_days)   
+                random_cost = random.randint(100, 1000000)
+                random_type = (random.randint(1,2) == 1)
+                curr.execute("INSERT INTO Grot.comprobante (numero , fecha , precio, tipo) VALUES("+ str(numero) + ", " + str(random_date) + ", "+ str(random_cost) + ", "+ str(random_type) +")")
+                conn.commit()
+    #End session                
+    curr.close()
+    conn.close()    
 
 def poblate_by_clients(size):
     client_cache = []
