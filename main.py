@@ -5,7 +5,9 @@ DB_USER = 'postgres'
 DB_PASS = 'niarfe+456'
 
 import psycopg2
+import psycopg2.extensions 
 import psycopg2.extras
+import datetime
 import random
 import string
 
@@ -15,6 +17,14 @@ conn = psycopg2.connect(dbname=DB_NAME, user=DB_USER, password=DB_PASS, host=DB_
 def genText():
     return ''.join(random.choices(string.ascii_letters + string.digits, k=16))
 
+def gen_random_date():
+    start_date = datetime.date(2010, 1, 1)
+    end_date = datetime.date(2020, 12, 1)
+    time_between_dates = end_date - start_date
+    days_between_dates = time_between_dates.days
+    random_number_of_days = random.randrange(days_between_dates)
+    return start_date + datetime.timedelta(days=random_number_of_days)    
+
 def generate_comprobante(size):
     comprobante_cache = []
     for i in range(size):
@@ -23,16 +33,11 @@ def generate_comprobante(size):
                 numero = random.randint(1000, 9999)
                 while numero in comprobante_cache:
                     numero = random.randint(1000, 9999)
-                comprobante_cache.append(numero)
-                start_date = datetime.date(2020, 1, 1)
-                end_date = datetime.date(2020, 2, 1)
-                time_between_dates = end_date - start_date
-                days_between_dates = time_between_dates.days
-                random_number_of_days = random.randrange(days_between_dates)
-                random_date = start_date + datetime.timedelta(days=random_number_of_days)   
+                comprobante_cache.append(numero) 
+                random_date = gen_random_date()
                 random_cost = random.randint(100, 1000000)
                 random_type = (random.randint(1,2) == 1)
-                curr.execute("INSERT INTO Grot.comprobante (numero , fecha , precio, tipo) VALUES("+ str(numero) + ", " + str(random_date) + ", "+ str(random_cost) + ", "+ str(random_type) +")")
+                curr.execute(""" INSERT INTO Grot.comprobante (numero, fecha, precio, tipo) VALUES (%s, %s, %s, %s); """,(numero,random_date,random_cost,random_type))
                 conn.commit()
     #End session                
     curr.close()
@@ -73,8 +78,34 @@ def poblate_by_warehouse(size):
     curr.close()
     conn.close()
 
+def gen_stock(size):
+    keys_producto = get_keys(keys="id", table="producto", prob = 50, rows = size)
+    keys_almacen = get_keys(keys="direccion", table="almacen", prob = 50, rows = size)
+    print(keys_producto)
+    for i in range(min(len(keys_producto), len(keys_almacen))):
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curr:
+                cantidad = random.randint(500, 10000)
+                curr.execute("INSERT INTO Grot.stock id , direccion , cantidad) VALUES( ' "+ str(keys_producto[i])+ "  ' , " + str(keys_almacen[i]) + "  ,  ' " + str(cantidad) + " )")
+                conn.commit()
+        #End session                
+        curr.close()
+        conn.close()
 
+def gen_compra(size):
+    keys_cliente = get_keys(keys = "ruc", table = "cliente", rows = 1, prob = 50)
+    keys_comprobante = get_keys(keys = "numero", table ="comprobante", rows = 1, prob = 50)
 
+    for i in range(size):
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curr:
+                curr.execute("INSERT INTO Grot.Compra () VALUES ()")
+                conn.commit()
+                curr.execute("INSERT INTO Grot.Compra () VALUES ()")
+    #End session                
+    curr.close()
+    conn.close()
+    
 def poblate_by_products(size):
     products_cache = []
 
@@ -88,29 +119,23 @@ def poblate_by_products(size):
                 products_cache.append(id)
                 curr.execute("INSERT INTO Grot.producto (id  , nombre ) VALUES( "+ str(id)+ "  ,  ' " + genText() +" ' )")
                 conn.commit()
-
     #End session                
     curr.close()
     conn.close()
 
-def get_keys(keys, table, rows = ""):
+def get_keys(keys, table, rows = "", prob = 1):
     row = []
     if(str(rows) != ""):
         rows = "Limit " +  str(rows)
 
     with conn:
         with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curr:
-            curr.execute("SELECT " + str(keys)  +" FROM Grot." + str(table)  + " TABLESAMPLE BERNOULLI(1) " + rows)
+            curr.execute("SELECT " + str(keys)  +" FROM Grot." + str(table)  + " TABLESAMPLE BERNOULLI( " + str(prob) + ") " + rows)
             row = curr.fetchall ()
             conn.commit()
-    #End session                
-    curr.close()
-    conn.close()
 
     return row
 
 if __name__ == "__main__":
-    row = get_keys("*" , "empresa")
-    for x in row:
-        print(x)
+    gen_stock(100)
             
