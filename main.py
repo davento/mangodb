@@ -2,7 +2,7 @@
 DB_HOST = 'localhost'
 DB_NAME = 'proyecto_db'
 DB_USER = 'postgres'
-DB_PASS = 'niarfe+456'
+DB_PASS = '123456'
 
 import psycopg2
 import psycopg2.extensions 
@@ -11,7 +11,9 @@ import datetime
 import random
 import string
 
-conn = psycopg2.connect(dbname=DB_NAME, user=DB_USER, password=DB_PASS, host=DB_HOST , port=5433)
+conn = psycopg2.connect(dbname=DB_NAME, user=DB_USER, password=DB_PASS, host=DB_HOST , port=5432)
+scheme = "oneM"
+
 
 
 def genText():
@@ -26,18 +28,15 @@ def gen_random_date():
     return start_date + datetime.timedelta(days=random_number_of_days)    
 
 def generate_comprobante(size):
-    comprobante_cache = []
     for i in range(size):
         with conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curr:
-                numero = random.randint(1000, 9999)
-                while numero in comprobante_cache:
-                    numero = random.randint(1000, 9999)
-                comprobante_cache.append(numero) 
+                numero = 1000 + i
                 random_date = gen_random_date()
                 random_cost = random.randint(100, 1000000)
                 random_type = (random.randint(1,2) == 1)
-                curr.execute(""" INSERT INTO Grot.comprobante (numero, fecha, precio, tipo) VALUES (%s, %s, %s, %s); """,(numero,random_date,random_cost,random_type))
+                curr.execute("SET search_path = '$user', " +  scheme)
+                curr.execute(""" INSERT INTO comprobante (numero, fecha, precio, tipo) VALUES (%s, %s, %s, %s); """,(numero,random_date,random_cost,random_type))
                 conn.commit()
     #End session                
     curr.close()
@@ -47,11 +46,9 @@ def poblate_by_clients(size):
     for i in range(size):
         with conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curr:
-                id = random.randint(10000000, 99999999)
-                while id in client_cache:
-                    id = random.randint(10000000, 99999999)
-                client_cache.append(id)
-                curr.execute("INSERT INTO Grot.Empresa (ruc, direccion, razonSocial) VALUES("+str(id)+ ", ' " + genText()+ " ',"+ str(id) +" )")
+                id = 10000000 + i
+                # client_cache.append(id)
+                curr.execute("INSERT INTO " +scheme+ ".Empresa (ruc, direccion, razonSocial) VALUES("+str(id)+ ", ' " + genText()+ " ',"+ str(id) +" )")
                 conn.commit()
 
     #End session                
@@ -64,11 +61,11 @@ def poblate_by_warehouse(size):
         with conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curr:
                 
-                dir = genText()
-                while dir in warehouse_cache:
-                    dir = genText()
-                warehouse_cache.append(dir)
-                curr.execute("INSERT INTO Grot.almacen (direccion , capacidad ) VALUES( ' "+str(dir)+ " ' , " + str(random.randint(1000, 10000)) +" )")
+                dir = str(i)
+                # while dir in warehouse_cache:
+                #     dir = genText()
+                #warehouse_cache.append(dir)
+                curr.execute("INSERT INTO " +  scheme + ".almacen (direccion , capacidad ) VALUES( ' "+str(dir)+ " ' , " + str(random.randint(1000, 10000)) +" )")
                 conn.commit()
 
     #End session                
@@ -94,7 +91,7 @@ def gen_stock(size):
                 else:
                     stock[id_almacen] = []        
                 stock[id_almacen].append(id_producto)    
-                curr.execute("INSERT INTO Grot.stock (id , almacen , cantidad) VALUES( '"+ id_producto + "' , '" + id_almacen + "'  ,   " + str(cantidad) + " )")
+                curr.execute("INSERT INTO " +  scheme +  ".stock (id , almacen , cantidad) VALUES( '"+ id_producto + "' , '" + id_almacen + "'  ,   " + str(cantidad) + " )")
                 conn.commit()
         #End session                
     curr.close()
@@ -114,10 +111,10 @@ def gen_compra(size):
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curr:
                 ruc = str(keys_cliente[random.randint(0, size_cliente)][0])
                 numero = str(keys[i][0])
-                curr.execute("INSERT INTO Grot.Compra (ruc, numero) VALUES ( "+ ruc + " , " + numero + " )" )
+                curr.execute("INSERT INTO "  + scheme + ".Compra (ruc, numero) VALUES ( "+ ruc + " , " + numero + " )" )
                 cantidad = random.randint(1, 45)
                 precioUnitario = random.randint(3, 750)
-                curr.execute("INSERT INTO Grot.CDetalle (id, direccion, numero, cantidad, precioUnitario) VALUES ( '" + str(keys_producto[random.randint(0,size_producto)][0]) + "' , '" + str(keys_almacen[random.randint(0,size_almacen)][0]) + "' , '" + numero + "' , '" + str(cantidad) + "' , '" + str(precioUnitario) + "' )")
+                curr.execute("INSERT INTO " + scheme +  ".CDetalle (id, direccion, numero, cantidad, precioUnitario) VALUES ( '" + str(keys_producto[random.randint(0,size_producto)][0]) + "' , '" + str(keys_almacen[random.randint(0,size_almacen)][0]) + "' , '" + numero + "' , '" + str(cantidad) + "' , '" + str(precioUnitario) + "' )")
                 conn.commit()
     #End session                
     curr.close()
@@ -125,13 +122,21 @@ def gen_compra(size):
 
 def gen_venta(size, keys):
     keys_cliente = get_keys(keys = "ruc", table = "empresa", rows = size, prob = 50)
+    keys_producto =  get_keys(keys="id", table="producto", prob = 50, rows = size)
+    size_producto = len(keys_producto) - 1
+
     size_ruc = len(keys_cliente) - 1
     size_comprobante = len(keys) - 1
 
     for i in range(size):
         with conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curr:
-                curr.execute("INSERT INTO Grot.Venta (numero, ruc) VALUES ( '" + str(keys[i + size][0]) + "' , '" + str(keys_cliente[random.randint(0, size_ruc)][0]) + "' )")
+                numero =  str(keys[i + size][0])
+                curr.execute("INSERT INTO " +  scheme + ".Venta (numero, ruc) VALUES ( '" + numero + "' , '" + str(keys_cliente[random.randint(0, size_ruc)][0]) + "' )")
+                cantidad = random.randint(1, 45)
+                precioUnitario = random.randint(3, 750)
+                curr.execute("INSERT INTO " + scheme +  ".vDetalle (id, numero, cantidad, precioUnitario) VALUES ( '" + str(keys_producto[random.randint(0,size_producto)][0]) + "' , '" + numero + "' , '" + str(cantidad) + "' , '" + str(precioUnitario) + "' )")
+                
                 conn.commit()
     #End session                
     curr.close()           
@@ -143,11 +148,8 @@ def poblate_by_products(size):
         with conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curr:
                 
-                id = random.randint(1, size * 10)
-                while id in products_cache:
-                    id =  random.randint(1, size * 10)
-                products_cache.append(id)
-                curr.execute("INSERT INTO Grot.producto (id  , nombre ) VALUES( "+ str(id)+ "  ,  ' " + genText() +" ' )")
+                id = i
+                curr.execute("INSERT INTO " + scheme + ".producto (id  , nombre ) VALUES( "+ str(id)+ "  ,  ' " + genText() +" ' )")
                 conn.commit()
     #End session                
     curr.close()
@@ -155,7 +157,7 @@ def poblate_by_products(size):
 def fue():
     with conn:
         with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curr:
-            str = "SET search_path = '$user', Grot ; delete from cdetalle; delete from vdetalle; delete from compra; delete from venta; delete from comprobante; delete from stock; delete from cliente; delete from persona; delete from producto; delete from almacen; delete from empresa;"
+            str = "SET search_path = '$user', " +  scheme + " ; delete from cdetalle; delete from vdetalle; delete from compra; delete from venta; delete from comprobante; delete from stock; delete from cliente; delete from persona; delete from producto; delete from almacen; delete from empresa;"
             curr.execute(str)
             conn.commit()
 
@@ -169,19 +171,26 @@ def get_keys(keys, table, rows = "", prob = 1):
 
     with conn:
         with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as curr:
-            curr.execute("SELECT " + str(keys)  +" FROM Grot." + str(table)  + " TABLESAMPLE BERNOULLI( " + str(prob) + ") " + rows)
+            curr.execute("SET search_path = '$user', " +  scheme)
+            curr.execute("SELECT " + str(keys)  +" FROM " + str(table)  + " TABLESAMPLE BERNOULLI( " + str(prob) + ") " + rows)
             row = curr.fetchall ()
             conn.commit()
     return row
 
 if __name__ == "__main__":
     fue()
-    size = 10000
+    size = 1000000
     poblate_by_clients(size)
+    print("Done client")
     poblate_by_products(size)
+    print("Done product")
     poblate_by_warehouse(size)
+    print("Done warehouse")
     gen_stock(size)
+    print("Done stock")
     generate_comprobante(size * 2)
+    print("Done comprobante")
     gen_compra(size)
+    print("Done compra")
     conn.close()
             
